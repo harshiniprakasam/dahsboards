@@ -1,8 +1,7 @@
 import os
 import gspread
 import pandas as pd
-import mysql.connector
-from mysql.connector import Error
+import pyodbc
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -11,8 +10,7 @@ from datetime import datetime
 
 # Google Sheets Authentication
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-CLIENT_SECRET_FILE = r"C:\Users\harsh\Automation\Equitas\client_secret.json"
-
+CLIENT_SECRET_FILE = r"C:\Users\Harshini P\Automation\dahsboards\Equitas\client_secret.json"
 TOKEN_FILE = 'token.json'
 
 creds = None
@@ -31,23 +29,19 @@ if not creds or not creds.valid:
 # Authenticate Google Sheets API
 gc = gspread.authorize(creds)
 
-# MySQL Database Connection
-DB_SERVER = "localhost"
-DB_NAME = "TEST"
-DB_USER = "root"
-DB_PASSWORD = "#Harshu@123"
+# SQL Server Connection
+DB_SERVER = "192.168.5.236"
+DB_USER = "cxpsadm"
+DB_PASSWORD = "c_xps123"
+DB_NAME = "cxpsadm"
 
+conn_str = f"DRIVER={{SQL Server}};SERVER={DB_SERVER};DATABASE={DB_NAME};UID={DB_USER};PWD={DB_PASSWORD}"
 try:
-    conn = mysql.connector.connect(
-        host=DB_SERVER,
-        database=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD
-    )
+    conn = pyodbc.connect(conn_str)
     cursor = conn.cursor()
-    print("Connected to MySQL Database successfully.")
-except Error as e:
-    print("Error connecting to MySQL:", e)
+    print("Connected to SQL Server successfully.")
+except pyodbc.DatabaseError as e:
+    print("Error connecting to SQL Server:", e)
     exit()
 
 # Column Mapping
@@ -122,6 +116,7 @@ def fetch_and_process_sheet(sheet_name, worksheet_name):
     df = df[[col for col in column_mapping if col in df.columns]].rename(columns=column_mapping)
     return df
 
+# Insert data to SQL Server
 if latest_sheet_name:
     df = fetch_and_process_sheet(latest_sheet_name, "EQUITAS")
 
@@ -129,7 +124,7 @@ if latest_sheet_name:
         print("No data hence Skipping update.")
     else:
         columns = list(df.columns)
-        placeholders = ", ".join(["%s" for _ in columns])
+        placeholders = ", ".join(["?" for _ in columns])
         sql_query = f"INSERT INTO EQUITAS ({', '.join(columns)}) VALUES ({placeholders})"
 
         data_tuples = df.apply(tuple, axis=1).tolist()
@@ -137,8 +132,8 @@ if latest_sheet_name:
         try:
             cursor.executemany(sql_query, data_tuples)
             conn.commit()
-            print("✅ Data inserted into MySQL successfully!")
-        except Error as e:
+            print("✅ Data inserted into SQL Server successfully!")
+        except pyodbc.Error as e:
             conn.rollback()
             print(f"❌ Error inserting data: {e}")
 

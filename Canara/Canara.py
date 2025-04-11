@@ -1,15 +1,16 @@
 import os
 import gspread
 import pandas as pd
-import mysql.connector
-from mysql.connector import Error
+import pyodbc
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+import re
+
 
 # Google Sheets Authentication
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-CLIENT_SECRET_FILE = r"C:\Users\harsh\Automation\Equitas\client_secret.json"
+CLIENT_SECRET_FILE = r"C:\Users\Harshini P\Automation\dahsboards\Canara\client_secret.json"
 TOKEN_FILE = 'token.json'
 
 creds = None
@@ -28,23 +29,20 @@ if not creds or not creds.valid:
 # Authenticate Google Sheets API
 gc = gspread.authorize(creds)
 
-# MySQL Database Connection
-DB_SERVER = "localhost"
-DB_NAME = "TEST"
-DB_USER = "root"
-DB_PASSWORD = "#Harshu@123"
+# SQL Server Connection
 
+DB_SERVER = "192.168.5.236"
+DB_NAME = "cxpsadm"
+DB_USER = "cxpsadm"
+DB_PASSWORD = "c_xps123"
+
+conn_str = f"DRIVER={{SQL Server}};SERVER={DB_SERVER};DATABASE={DB_NAME};UID={DB_USER};PWD={DB_PASSWORD}"
 try:
-    conn = mysql.connector.connect(
-        host=DB_SERVER,
-        database=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD
-    )
+    conn = pyodbc.connect(conn_str)
     cursor = conn.cursor()
-    print("Connected to MySQL Database successfully.")
-except Error as e:
-    print("Error connecting to MySQL:", e)
+    print("Connected to SQL Server successfully.")
+except pyodbc.Error as e:
+    print("Error connecting to SQL Server:", e)
     exit()
 
 # Fetch SQL Table Column Names & Data Types
@@ -52,8 +50,6 @@ column_data_types = {}
 cursor.execute("SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'CANARA'")
 for col_name, data_type in cursor.fetchall():
     column_data_types[col_name] = data_type.upper()
-
-print("Column Data Types Fetched:", column_data_types)
 
 # Column Mapping
 column_mapping = {
@@ -84,15 +80,40 @@ column_mapping = {
     "Bank Size": "Bank_Size"
 }
 
+# Function to get latest Clari5 sheet
+def get_latest_sheet():
+    all_spreadsheets = gc.list_spreadsheet_files()
+    month_mapping = {month: index for index, month in enumerate(
+        ["Jan", "Feb", "March", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], start=1)}
+    
+    valid_sheets = []
+    pattern = re.compile(r"Clari5_Wisdom_data-([A-Za-z]+)-25")
+
+    for sheet in all_spreadsheets:
+        match = pattern.search(sheet['name'])
+        if match:
+            month_str = match.group(1)
+            if month_str in month_mapping:
+                valid_sheets.append((sheet['name'], month_mapping[month_str]))
+
+    if not valid_sheets:
+        print("\033[1mNo valid sheets found.\033[0m")
+        return None
+
+    latest_sheet = max(valid_sheets, key=lambda x: x[1])
+    print(f"\033[1mLatest sheet identified: {latest_sheet[0]}\033[0m")
+    return latest_sheet[0]
+
+# Fetch and process data from the latest sheet
 def fetch_and_process_sheet(sheet_name, worksheet_name):
     try:
         spreadsheet = gc.open(sheet_name)
         worksheet = spreadsheet.worksheet(worksheet_name)
     except gspread.exceptions.SpreadsheetNotFound:
-        print(f"Error: The spreadsheet '{sheet_name}' was not found.")
+        print(f"Spreadsheet '{sheet_name}' not found.")
         return None
     except gspread.exceptions.WorksheetNotFound:
-        print(f"Error: The sheet '{worksheet_name}' was not found in '{sheet_name}'.")
+        print(f"Worksheet '{worksheet_name}' not found in '{sheet_name}'.")
         return None
 
     headers = [col.strip().replace("*", "").replace("/", "_") for col in worksheet.row_values(1)]
@@ -101,6 +122,7 @@ def fetch_and_process_sheet(sheet_name, worksheet_name):
     df = df.rename(columns={k: v for k, v in column_mapping.items() if k in df.columns})
     return df
 
+# Convert data to match SQL column types
 def convert_data(value, dtype):
     if pd.isna(value) or (isinstance(value, str) and value.strip() == ''):
         return None
@@ -119,35 +141,42 @@ def convert_data(value, dtype):
             return pd.to_datetime(value, errors='coerce')
         except Exception:
             return None
-    if dtype in ['VARCHAR', 'TEXT']:
+    if dtype in ['VARCHAR', 'TEXT', 'NVARCHAR']:
         return str(value).strip()
     return value
 
-sheets_to_process = ["Clari5_Wisdom_data-Jan-25", "Clari5_Wisdom_data-Feb-25"]
-
-for sheet in sheets_to_process:
-    df = fetch_and_process_sheet(sheet, "CANARA")
-    if df is not None:
+# Main logic
+latest_sheet = get_latest_sheet()
+if latest_sheet:
+    df = fetch_and_process_sheet(latest_sheet, "CANARA")
+    if df is None:
+        print(f"⚠️ Could not load data from {latest_sheet}. Skipping update.")
+    elif df.empty:
+        print(f"⚠️ Skipping update — sheet '{latest_sheet}' is empty.")
+    else:
         df.fillna('', inplace=True)
         df = df.sort_values(by=['Data_Month'])
+
         for col in df.columns:
             df[col] = df[col].map(lambda x: convert_data(x, column_data_types.get(col, 'VARCHAR')))
         df = df[column_data_types.keys()]
         for col in df.columns:
             if column_data_types.get(col, '') in ['INT', 'BIGINT', 'DECIMAL', 'FLOAT', 'NUMERIC']:
                 df[col] = df[col].fillna(0)
+
         columns = list(df.columns)
-        placeholders = ', '.join(['%s'] * len(columns))
+        placeholders = ', '.join(['?' for _ in columns])
         sql_query = f"INSERT INTO CANARA ({', '.join(columns)}) VALUES ({placeholders})"
         data_tuples = df.apply(tuple, axis=1).tolist()
-        print("Inserting data from:", sheet)
+        print("Inserting data from:", latest_sheet)
+
         try:
             cursor.executemany(sql_query, data_tuples)
             conn.commit()
-            print("Data inserted into MySQL successfully for:", sheet)
-        except Error as e:
+            print("✅ Data inserted into SQL Server successfully!")
+        except pyodbc.Error as e:
             conn.rollback()
-            print(f"Error inserting data from {sheet}: {e}")
+            print(f"❌ Error inserting data from {latest_sheet}: {e}")
 
 cursor.close()
 conn.close()

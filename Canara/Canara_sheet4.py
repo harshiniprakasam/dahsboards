@@ -1,24 +1,24 @@
-import mysql.connector
+import pyodbc
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.patches import FancyBboxPatch
 
-# MySQL Database Connection
+# SQL Server Database Connection
 def fetch_data(query):
-    DB_SERVER = "localhost"
-    DB_NAME = "TEST"
-    DB_USER = "root"
-    DB_PASSWORD = "#Harshu@123"
-
+    conn_str = (
+        "DRIVER={SQL Server};"
+        "SERVER=192.168.5.236;"
+        "DATABASE=cxpsadm;"
+        "UID=cxpsadm;"
+        "PWD=c_xps123"
+    )
     try:
-        conn = mysql.connector.connect(
-            host=DB_SERVER, database=DB_NAME, user=DB_USER, password=DB_PASSWORD
-        )
-        df = pd.read_sql(query, conn)
+        conn = pyodbc.connect(conn_str)
+        df = pd.read_sql_query(query, conn)
         conn.close()
         return df
-    except mysql.connector.Error as e:
+    except pyodbc.Error as e:
         print(f"⚠️ Error: {e}")
         return None
 
@@ -95,9 +95,8 @@ axes[0, 2].set_title("Loss Type by Channel (M)", fontsize=14)
 axes[0, 2].set_ylabel("Amount (M)")
 axes[0, 2].legend(title="Loss Type")
 
-# 6. Summary Cards – optional (or leave blank)
+# 6. Summary Cards – optional
 axes[1, 2].axis("off")
-
 
 # Layout tweaks
 for ax in axes.flatten():

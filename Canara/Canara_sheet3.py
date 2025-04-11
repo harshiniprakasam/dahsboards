@@ -1,14 +1,15 @@
-import mysql.connector
+import pyodbc
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 
 # Style and colors
 sns.set_style("whitegrid")
 plt.rcParams.update({'font.size': 11, 'font.family': 'Arial'})
 blue = '#00AEEF'
 
-# DB fetch
+# DB fetch using SQL Server
 def fetch_upi_data():
     query = """
         SELECT 
@@ -21,18 +22,26 @@ def fetch_upi_data():
         FROM CANARA
         WHERE Channel = 'UPI' AND Month_number IN (1, 2)
     """
-    config = {
-        "host": "localhost",
-        "database": "TEST",
-        "user": "root",
-        "password": "#Harshu@123"
-    }
+    conn_str = (
+        "DRIVER={SQL Server};"
+        "SERVER=192.168.5.236;"
+        "DATABASE=cxpsadm;"
+        "UID=cxpsadm;"
+        "PWD=c_xps123"
+    )
+    
+    try:
+        conn = pyodbc.connect(conn_str)
+        df = pd.read_sql_query(query, conn)
+        conn.close()
 
-    with mysql.connector.connect(**config) as conn:
-        df = pd.read_sql(query, conn)
         df = df.apply(pd.to_numeric, errors='coerce').fillna(0)
         df['Month'] = df['Month_number'].map({1: 'Jan-25', 2: 'Feb-25'})
         return df
+
+    except pyodbc.Error as e:
+        print(f"Database Error: {e}")
+        return pd.DataFrame()
 
 # Plot
 def plot_upi_dashboard(df):
@@ -88,40 +97,54 @@ def plot_upi_dashboard(df):
     ax6.bar_label(ax6.containers[0], labels=labels_loss, padding=3)
     ax6.grid(False)
 
-    # Fancy Info Cards
+    # Fancy Info Cards with Modern Aesthetics
     for i, month in enumerate(months):
         loss_amt = grouped.loc[month, 'Total_Amount_Lost'] / 1000
         saved_amt = grouped.loc[month, 'Total_Amount_Saved'] / 1000
 
-        # X coordinate for positioning (left to right)
         x_base = 0.22 + i * 0.26
 
-        # Month label
-        fig.text(x_base, 0.33, f"{month}", fontsize=16, weight='bold', ha='center')
+        # Month Title
+        fig.text(
+            x_base, 0.35, f"{month}",
+            fontsize=18, weight='bold', ha='center', color="#333333"
+        )
 
-        # Loss card
+        # Avoidable Loss Card
         fig.text(
             x_base, 0.26,
             f"{loss_amt:,.1f}K INR\nAvoidable Loss",
-            fontsize=14, weight='bold', ha='center', va='center',
-            bbox=dict(boxstyle="round,pad=0.7", facecolor='#ffdddd', edgecolor='gray', linewidth=1.2)
+            fontsize=16, weight='bold', ha='center', va='center',
+            bbox=dict(
+                boxstyle="round,pad=1.2", facecolor='#FF6F61', edgecolor='none',
+                alpha=0.9, linewidth=0
+            ),
+            color="white"
         )
 
-        # Saved card
+        # Saved Amount Card
         fig.text(
             x_base, 0.13,
             f"{saved_amt:,.1f}K INR\nSaved",
-            fontsize=14, weight='bold', ha='center', va='center',
-            bbox=dict(boxstyle="round,pad=0.7", facecolor='#ddffdd', edgecolor='gray', linewidth=1.2)
+            fontsize=16, weight='bold', ha='center', va='center',
+            bbox=dict(
+                boxstyle="round,pad=1.2", facecolor='#6EC664', edgecolor='none',
+                alpha=0.9, linewidth=0
+            ),
+            color="white"
         )
 
-    # Hide unused subplots
     axes[1, 0].axis('off')
     axes[1, 1].axis('off')
 
-    # Adjust layout
     plt.tight_layout(rect=[0, 0.05, 1, 0.93])
-    plt.show()
+
+    # Save the figure as a PNG file in the "pngs" folder
+    output_dir = "pngs"
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, "Canara_sheet3.png")
+    plt.savefig(output_path)
+    print(f"Dashboard saved as: {output_path}")
 
 # Execute
 upi_df = fetch_upi_data()

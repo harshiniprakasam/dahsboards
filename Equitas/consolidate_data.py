@@ -1,11 +1,12 @@
 import os
 import gspread
 import pandas as pd
-import mysql.connector
+import pyodbc
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import re
+
 
 # Google Sheets Authentication
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -27,24 +28,19 @@ if not creds or not creds.valid:
 
 # Authenticate Google Sheets API
 gc = gspread.authorize(creds)
+# SQL Server Connection
+DB_SERVER = "192.168.5.236"
+DB_USER = "cxpsadm"
+DB_PASSWORD = "c_xps123"
+DB_NAME = "cxpsadm"
 
-# MySQL Connection Details
-DB_SERVER = "localhost"
-DB_NAME = "TEST"
-DB_USER = "root"
-DB_PASSWORD = "#Harshu@123"
-
+conn_str = f"DRIVER={{SQL Server}};SERVER={DB_SERVER};DATABASE={DB_NAME};UID={DB_USER};PWD={DB_PASSWORD}"
 try:
-    conn = mysql.connector.connect(
-        host=DB_SERVER,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        database=DB_NAME
-    )
+    conn = pyodbc.connect(conn_str)
     cursor = conn.cursor()
-    print("\u2705 Connected to MySQL successfully.")
-except mysql.connector.Error as e:
-    print("\u274c Error connecting to MySQL:", e)
+    print("Connected to SQL Server successfully.")
+except pyodbc.DatabaseError as e:
+    print("Error connecting to SQL Server:", e)
     exit()
 
 # Column Mapping
@@ -65,17 +61,16 @@ column_mapping = {
     "Credit Amount": "Credit_Amount",
     "Debit Amount": "Debit_Amount",
     "Sector": "Sector",
-    "Scenario count": "Scenario_count"
+    "Scenario count": "Scenario_count",
+    "Alias":"ALIAS"
 }
 
 def get_latest_sheet():
-    """Find the most recent Clari5_Wisdom_data-<Month>-25 sheet."""
     all_spreadsheets = gc.list_spreadsheet_files()
     month_mapping = {
         "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
         "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12
     }
-
     valid_sheets = []
     pattern = re.compile(r"Clari5_Wisdom_data-([A-Za-z]+)-25")
 
@@ -95,7 +90,6 @@ def get_latest_sheet():
     return latest_sheet[0]
 
 def fetch_google_sheet(sheet_name, worksheet_name):
-    """Fetch data from Google Sheets and process it into a DataFrame."""
     try:
         spreadsheet = gc.open(sheet_name)
         worksheet = spreadsheet.worksheet(worksheet_name)
@@ -105,7 +99,7 @@ def fetch_google_sheet(sheet_name, worksheet_name):
     except gspread.exceptions.WorksheetNotFound:
         print(f"Error: The sheet '{worksheet_name}' was not found in '{sheet_name}'.")
         return None
-    
+
     headers = [col.strip() for col in worksheet.row_values(1)]
     data = worksheet.get_all_values()[1:]
 
@@ -114,8 +108,6 @@ def fetch_google_sheet(sheet_name, worksheet_name):
         return None
 
     df = pd.DataFrame(data, columns=headers)
-
-    # Select relevant columns and rename them according to the SQL table
     df = df[[col for col in column_mapping if col in df.columns]].rename(columns=column_mapping)
     return df
 
@@ -129,32 +121,28 @@ if latest_sheet_name:
     if df is not None:
         df.fillna('', inplace=True)
 
-        # Clear existing table data before inserting new data
         try:
             cursor.execute("DELETE FROM CONSOLIDATE_DATA")
             conn.commit()
             print("\u2705 Existing data in 'CONSOLIDATE_DATA' table cleared.")
-        except mysql.connector.Error as e:
+        except pyodbc.Error as e:
             conn.rollback()
             print("\u274c Error clearing table:", e)
 
-        # Prepare SQL INSERT query
         columns = list(df.columns)
-        placeholders = ", ".join(["%s" for _ in range(len(columns))])
+        placeholders = ', '.join(['?' for _ in columns])
         sql_query = f"INSERT INTO CONSOLIDATE_DATA ({', '.join(columns)}) VALUES ({placeholders})"
 
-        # Convert DataFrame to list of tuples
         data_tuples = df.apply(tuple, axis=1).tolist()
-        print("Inserting new data into MySQL...")
+        print("Inserting new data into SQL Server...")
 
         try:
             cursor.executemany(sql_query, data_tuples)
             conn.commit()
             print("\u2705 New data inserted successfully into 'CONSOLIDATE_DATA'.")
-        except mysql.connector.Error as e:
+        except pyodbc.Error as e:
             conn.rollback()
             print("\u274c Error inserting data:", e)
 
-# Close connections
 cursor.close()
 conn.close()
