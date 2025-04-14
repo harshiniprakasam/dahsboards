@@ -3,6 +3,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Style and colors
 sns.set_style("whitegrid")
@@ -23,11 +27,11 @@ def fetch_upi_data():
         WHERE Channel = 'UPI' AND Month_number IN (1, 2)
     """
     conn_str = (
-        "DRIVER={SQL Server};"
-        "SERVER=192.168.5.236;"
-        "DATABASE=cxpsadm;"
-        "UID=cxpsadm;"
-        "PWD=c_xps123"
+        f"DRIVER={{SQL Server}};"
+        f"SERVER={os.getenv('DB_SERVER')};"
+        f"DATABASE={os.getenv('DB_NAME')};"
+        f"UID={os.getenv('DB_USER')};"
+        f"PWD={os.getenv('DB_PASSWORD')}"
     )
     
     try:
@@ -97,7 +101,7 @@ def plot_upi_dashboard(df):
     ax6.bar_label(ax6.containers[0], labels=labels_loss, padding=3)
     ax6.grid(False)
 
-    # Fancy Info Cards with Modern Aesthetics
+    #  Info Cards 
     for i, month in enumerate(months):
         loss_amt = grouped.loc[month, 'Total_Amount_Lost'] / 1000
         saved_amt = grouped.loc[month, 'Total_Amount_Saved'] / 1000

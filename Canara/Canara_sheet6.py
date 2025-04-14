@@ -5,18 +5,22 @@ import pyodbc
 import matplotlib.gridspec as gridspec
 import warnings
 import os
+from dotenv import load_dotenv
 
 # Suppress warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# Load environment variables from .env file
+load_dotenv()
+
 # Connect to the database
 conn_str = (
-    "DRIVER={SQL Server};"
-    "SERVER=192.168.5.236;"
-    "DATABASE=cxpsadm;"
-    "UID=cxpsadm;"
-    "PWD=c_xps123"
+    f"DRIVER={{SQL Server}};"
+    f"SERVER={os.getenv('DB_SERVER')};"
+    f"DATABASE={os.getenv('DB_NAME')};"
+    f"UID={os.getenv('DB_USER')};"
+    f"PWD={os.getenv('DB_PASSWORD')}"
 )
 
 query = """

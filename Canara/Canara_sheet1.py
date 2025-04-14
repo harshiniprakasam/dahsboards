@@ -3,15 +3,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
+from dotenv import load_dotenv
 
-# SQL Server connection string
-conn_str = (
-    "DRIVER={SQL Server};"
-    "SERVER=192.168.5.236;"
-    "DATABASE=cxpsadm;"
-    "UID=cxpsadm;"
-    "PWD=c_xps123"
-)
+# Load environment variables from .env file
+load_dotenv()
+
+# SQL Server connection string using environment variables
+DB_SERVER = os.getenv("DB_SERVER")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+
+conn_str = f"DRIVER={{SQL Server}};SERVER={DB_SERVER};DATABASE={DB_NAME};UID={DB_USER};PWD={DB_PASSWORD}"
 
 def fetch_data(query):
     """Fetch data from SQL Server database and preprocess."""

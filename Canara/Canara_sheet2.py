@@ -5,16 +5,21 @@ import seaborn as sns
 from matplotlib.patches import FancyBboxPatch
 from matplotlib import patheffects
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# SQL Server connection string using environment variables
+DB_SERVER = os.getenv("DB_SERVER")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+
+conn_str = f"DRIVER={{SQL Server}};SERVER={DB_SERVER};DATABASE={DB_NAME};UID={DB_USER};PWD={DB_PASSWORD}"
 
 # SQL Server Database Connection
 def fetch_data(query):
-    conn_str = (
-        "DRIVER={SQL Server};"
-        "SERVER=192.168.5.236;"
-        "DATABASE=cxpsadm;"
-        "UID=cxpsadm;"
-        "PWD=c_xps123"
-    )
     try:
         conn = pyodbc.connect(conn_str)
         df = pd.read_sql_query(query, conn)

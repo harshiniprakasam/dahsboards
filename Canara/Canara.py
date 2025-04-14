@@ -5,12 +5,15 @@ import pyodbc
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from dotenv import load_dotenv
 import re
 
+# Load environment variables from .env file
+load_dotenv()
 
 # Google Sheets Authentication
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-CLIENT_SECRET_FILE = r"C:\Users\Harshini P\Automation\dahsboards\Canara\client_secret.json"
+CLIENT_SECRET_FILE = os.getenv("CLIENT_SECRET_FILE")
 TOKEN_FILE = 'token.json'
 
 creds = None
@@ -30,11 +33,10 @@ if not creds or not creds.valid:
 gc = gspread.authorize(creds)
 
 # SQL Server Connection
-
-DB_SERVER = "192.168.5.236"
-DB_NAME = "cxpsadm"
-DB_USER = "cxpsadm"
-DB_PASSWORD = "c_xps123"
+DB_SERVER = os.getenv("DB_SERVER")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 conn_str = f"DRIVER={{SQL Server}};SERVER={DB_SERVER};DATABASE={DB_NAME};UID={DB_USER};PWD={DB_PASSWORD}"
 try:

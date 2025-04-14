@@ -10,13 +10,18 @@ from email import encoders
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google_auth_oauthlib.flow import InstalledAppFlow
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Gmail API Configuration
+SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
+TOKEN_PATH = os.getenv("TOKEN_PATH")
+CLIENT_SECRET_FILE = os.getenv("CLIENT_SECRET_FILE")
 
 # === Gmail Authentication ===
 def authenticate_gmail():
-    SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
-    TOKEN_PATH = r"C:\Users\Harshini P\Automation\dahsboards\Equitas\Reports\cred.json"
-    CLIENT_SECRET_FILE = r"C:\Users\Harshini P\Automation\dahsboards\Equitas\Reports\client_secret.json"
-
     creds = None
     if os.path.exists(TOKEN_PATH):
         with open(TOKEN_PATH, "rb") as token:
@@ -35,7 +40,7 @@ def send_email(pdf_filename):
     subject = "Monthly Fraud Management Report"
     body = (
         "Dear Team,\n\n"
-        "This is an auto-generated email with a PDF attachment containing the CANARA report.\n\n"
+        "This is an auto-generated email with a PDF attachment containing the CANARA lreport.\n\n"
         "Best regards,\nHarshini"
     )
 
@@ -57,9 +62,9 @@ def send_email(pdf_filename):
     raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
     try:
         service.users().messages().send(userId="me", body={"raw": raw_message}).execute()
-        print(f"📧 Email sent successfully to {recipient} with {pdf_filename}")
+        print(f"Email sent successfully to {recipient} with {pdf_filename}")
     except HttpError as error:
-        print(f"❌ An error occurred while sending email: {error}")
+        print(f" An error occurred while sending email: {error}")
 
 # === Create PDF from PNGs ===
 def create_pdf_from_images(image_folder, output_pdf):
@@ -114,7 +119,7 @@ def create_pdf_from_images(image_folder, output_pdf):
 
     try:
         pdf.output(output_pdf)
-        print(f"📄 PDF created successfully: {output_pdf}")
+        print(f"PDF created successfully: {output_pdf}")
         send_email(output_pdf)  # <-- Call email function after PDF is saved
     except Exception as e:
         print(f"Error saving PDF: {e}")

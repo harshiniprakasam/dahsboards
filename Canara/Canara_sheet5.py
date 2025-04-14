@@ -4,14 +4,18 @@ import seaborn as sns
 import pyodbc
 import matplotlib.ticker as mtick
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Database connection string
 conn_str = (
-    "DRIVER={SQL Server};"
-    "SERVER=192.168.5.236;"
-    "DATABASE=cxpsadm;"
-    "UID=cxpsadm;"
-    "PWD=c_xps123"
+    f"DRIVER={{SQL Server}};"
+    f"SERVER={os.getenv('DB_SERVER')};"
+    f"DATABASE={os.getenv('DB_NAME')};"
+    f"UID={os.getenv('DB_USER')};"
+    f"PWD={os.getenv('DB_PASSWORD')}"
 )
 
 # SQL query
